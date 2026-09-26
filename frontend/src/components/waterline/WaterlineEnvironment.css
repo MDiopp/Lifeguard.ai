@@ -1,0 +1,31 @@
+.waterline-environment {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  touch-action: pan-y;
+  background: var(--lagoon);
+}
+
+.waterline-poster, .waterline-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.waterline-poster {
+  background: url('/art/waterline-desktop.jpg') center / 100% 100% no-repeat,
+    linear-gradient(var(--seafoam) 35%, var(--lagoon) 42%);
+}
+
+.waterline-canvas { opacity: 0; pointer-events: none; }
+.waterline-environment[data-renderer='webgl'] .waterline-canvas { opacity: 1; }
+
+@media (max-width: 600px) {
+  .waterline-poster { background-image: url('/art/waterline-portrait.jpg'); }
+}
+
+@media (max-width: 600px) and (max-height: 740px) {
+  .waterline-poster { background-image: url('/art/waterline-compact.jpg'); }
+}
