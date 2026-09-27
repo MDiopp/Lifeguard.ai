@@ -1,1 +1,6 @@
 .venv/
+.env
+.ultralytics/
+__pycache__/
+*.py[cod]
+Ultralytics/

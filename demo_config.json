@@ -1,3 +1,44 @@
 {
-  "videos": {}
+  "videos": {
+    "easy_01": {
+      "video_id": "easy_01",
+      "filename": "easy_01.mp4",
+      "relative_path": "demo_videos/easy/easy_01.mp4",
+      "difficulty": "easy",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "distress_start": 7.0,
+          "distress_end": 23.0,
+          "description": "Black girl in pink suit",
+          "camera_view_location": "middle-right"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 12.0,
+        "maximum": 14.0
+      },
+      "notes": null
+    },
+    "hard_01": {
+      "video_id": "hard_01",
+      "filename": "hard_01.mp4",
+      "relative_path": "demo_videos/hard/hard_01.mp4",
+      "difficulty": "hard",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "distress_start": 14.0,
+          "distress_end": 29.78,
+          "description": "White girl",
+          "camera_view_location": "middle-left"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 18.0,
+        "maximum": 20.0
+      },
+      "notes": "Distress end was annotated as 30 seconds and normalized to the 29.78-second clip duration."
+    }
+  }
 }

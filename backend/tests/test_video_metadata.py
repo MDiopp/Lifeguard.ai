@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from backend.metadata import (
+    CameraViewLocation,
     ConfigFileNotFoundError,
     Difficulty,
     DuplicateIdError,
@@ -30,10 +31,10 @@ def valid_video(video_id: str = "easy_01", difficulty: str = "easy") -> dict:
                 "distress_start": 6.2,
                 "distress_end": 13.8,
                 "description": None,
-                "location": None,
-                "expected_track_id": None,
+                "camera_view_location": None,
             }
         ],
+        "ai_answer_time_range": {"minimum": 8.0, "maximum": 10.0},
         "notes": None,
     }
 
@@ -59,7 +60,6 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
         hard = valid_video("hard_01", "hard")
         hard["distressed_swimmers"][0]["id"] = "swimmer_9"
         hard["distressed_swimmers"][0]["description"] = "swimmer in yellow cap"
-        hard["distressed_swimmers"][0]["expected_track_id"] = 42
         self.write_config({"videos": {"easy_01": easy, "hard_01": hard}})
 
         repository = JsonVideoMetadataRepository(
@@ -82,15 +82,24 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
         self.assertIsNone(document["notes"])
         self.assertIsNone(document["distressed_swimmers"][0]["description"])
         self.assertEqual(document["difficulty"], "easy")
-        self.assertEqual(
-            repository.get_by_id("hard_01")
-            .to_document()["distressed_swimmers"][0]["expected_track_id"],
-            42,
-        )
+        self.assertEqual(document["ai_answer_time_range"]["minimum"], 8.0)
 
-    def test_checked_in_empty_config_loads_without_referencing_unannotated_mov_files(self) -> None:
+    def test_checked_in_config_loads_both_annotated_videos(self) -> None:
         repository = load_video_metadata()
-        self.assertEqual(repository.get_all(), ())
+        self.assertEqual(
+            [video.video_id for video in repository.get_all()],
+            ["easy_01", "hard_01"],
+        )
+        easy_swimmer = repository.get_by_id("easy_01").distressed_swimmers[0]
+        hard_swimmer = repository.get_by_id("hard_01").distressed_swimmers[0]
+        self.assertEqual(easy_swimmer.description, "Black girl in pink suit")
+        self.assertEqual(
+            easy_swimmer.camera_view_location,
+            CameraViewLocation.MIDDLE_RIGHT,
+        )
+        self.assertEqual(hard_swimmer.distress_end, 29.78)
+        self.assertEqual(repository.get_by_id("easy_01").ai_answer_time_range.minimum, 12.0)
+        self.assertEqual(repository.get_by_id("hard_01").ai_answer_time_range.maximum, 20.0)
 
     def test_missing_config_has_clear_error(self) -> None:
         with self.assertRaisesRegex(ConfigFileNotFoundError, "config not found"):
@@ -136,12 +145,18 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
             ("difficulty", "medium", "difficulty"),
             ("distress_start", -1, "non-negative"),
             ("distress_end", 6.2, "greater than distress_start"),
+            ("answer_minimum", 5.0, "must not precede"),
+            ("answer_maximum", 14.0, "must stay within"),
         ]
         for field, value, message in invalid_cases:
             with self.subTest(field=field):
                 video = valid_video()
                 if field == "difficulty":
                     video[field] = value
+                elif field == "answer_minimum":
+                    video["ai_answer_time_range"]["minimum"] = value
+                elif field == "answer_maximum":
+                    video["ai_answer_time_range"]["maximum"] = value
                 else:
                     video["distressed_swimmers"][0][field] = value
                 self.write_config({"videos": {"easy_01": video}})

@@ -1,1 +1,8 @@
+fastapi>=0.116,<1
+google-genai>=1.50,<2
+lap>=0.5.12,<1
+opencv-python>=4.10,<5
 pydantic>=2.12,<3
+python-dotenv>=1.1,<2
+ultralytics>=8.3,<9
+uvicorn[standard]>=0.35,<1

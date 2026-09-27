@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import PurePosixPath
 import re
-from typing import Any, Mapping
+from typing import Annotated, Any, Mapping
 
 from pydantic import (
     BaseModel,
@@ -33,10 +33,33 @@ class Difficulty(str, Enum):
     HARD = "hard"
 
 
+class CameraViewLocation(str, Enum):
+    TOP_LEFT = "top-left"
+    TOP_CENTER = "top-center"
+    TOP_RIGHT = "top-right"
+    MIDDLE_LEFT = "middle-left"
+    MIDDLE_CENTER = "middle-center"
+    MIDDLE_RIGHT = "middle-right"
+    BOTTOM_LEFT = "bottom-left"
+    BOTTOM_CENTER = "bottom-center"
+    BOTTOM_RIGHT = "bottom-right"
+
+
 class MetadataModel(BaseModel):
     """Strict, immutable base model shared by metadata documents."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+
+class AIAnswerTimeRange(MetadataModel):
+    minimum: float = Field(ge=0, allow_inf_nan=False)
+    maximum: float = Field(ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def maximum_must_not_precede_minimum(self) -> AIAnswerTimeRange:
+        if self.maximum < self.minimum:
+            raise ValueError("maximum must be greater than or equal to minimum")
+        return self
 
 
 def _format_validation_error(
@@ -63,8 +86,9 @@ class DistressedSwimmerMetadata(MetadataModel):
     distress_start: float = Field(ge=0, allow_inf_nan=False)
     distress_end: float = Field(ge=0, allow_inf_nan=False)
     description: str | None = None
-    location: str | None = None
-    expected_track_id: str | int | None = None
+    camera_view_location: (
+        Annotated[CameraViewLocation, Field(strict=False)] | None
+    ) = None
 
     @field_validator("distress_start", "distress_end", mode="before")
     @classmethod
@@ -77,20 +101,11 @@ class DistressedSwimmerMetadata(MetadataModel):
             raise ValueError("must be non-negative")
         return value
 
-    @field_validator("description", "location", "expected_track_id")
+    @field_validator("description")
     @classmethod
     def optional_strings_must_not_be_blank(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
             raise ValueError("must be null or a non-empty string")
-        return value
-
-    @field_validator("expected_track_id")
-    @classmethod
-    def numeric_track_ids_must_be_non_negative(
-        cls, value: str | int | None
-    ) -> str | int | None:
-        if isinstance(value, int) and value < 0:
-            raise ValueError("must be a non-negative integer or non-empty string")
         return value
 
     @model_validator(mode="after")
@@ -113,6 +128,7 @@ class VideoMetadata(MetadataModel):
         min_length=1,
         strict=False,
     )
+    ai_answer_time_range: AIAnswerTimeRange
     notes: str | None = None
 
     @field_validator("filename")
@@ -147,6 +163,18 @@ class VideoMetadata(MetadataModel):
         expected_path = f"demo_videos/{self.difficulty.value}/{self.filename}"
         if self.relative_path != expected_path:
             raise ValueError(f"relative_path must be {expected_path!r}")
+        earliest_start = min(
+            swimmer.distress_start for swimmer in self.distressed_swimmers
+        )
+        latest_end = max(swimmer.distress_end for swimmer in self.distressed_swimmers)
+        if self.ai_answer_time_range.minimum < earliest_start:
+            raise ValueError(
+                "ai_answer_time_range.minimum must not precede the distress interval"
+            )
+        if self.ai_answer_time_range.maximum > latest_end:
+            raise ValueError(
+                "ai_answer_time_range.maximum must stay within the distress interval"
+            )
         return self
 
     @classmethod

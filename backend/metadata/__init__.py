@@ -1,6 +1,8 @@
 """Local demo-video metadata models and repository."""
 
 from .models import (
+    AIAnswerTimeRange,
+    CameraViewLocation,
     DemoConfig,
     Difficulty,
     DistressedSwimmerMetadata,
@@ -19,6 +21,8 @@ from .repository import (
 )
 
 __all__ = [
+    "AIAnswerTimeRange",
+    "CameraViewLocation",
     "ConfigFileNotFoundError",
     "DemoConfig",
     "Difficulty",
