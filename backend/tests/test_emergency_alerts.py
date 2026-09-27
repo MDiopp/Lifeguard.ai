@@ -3,18 +3,19 @@ from __future__ import annotations
 import unittest
 
 from backend.monitor import EMERGENCY_MESSAGE, EmergencyAlertHub
+from backend.monitor.descriptor import clean_person_descriptor
 
 
 class FakeWebSocket:
     def __init__(self, *, fail: bool = False) -> None:
         self.accepted = False
         self.fail = fail
-        self.messages: list[dict[str, str]] = []
+        self.messages: list[dict[str, object]] = []
 
     async def accept(self) -> None:
         self.accepted = True
 
-    async def send_json(self, message: dict[str, str]) -> None:
+    async def send_json(self, message: dict[str, object]) -> None:
         if self.fail:
             raise RuntimeError("connection closed")
         self.messages.append(message)
@@ -53,6 +54,32 @@ class EmergencyAlertHubTests(unittest.IsolatedAsyncioTestCase):
             await hub.broadcast_emergency(source_client_id="laptop"),
             0,
         )
+
+    async def test_distress_alert_reaches_every_connected_monitor(self) -> None:
+        hub = EmergencyAlertHub()
+        laptop = FakeWebSocket()
+        phone = FakeWebSocket()
+        await hub.connect(laptop, "laptop")  # type: ignore[arg-type]
+        await hub.connect(phone, "phone")  # type: ignore[arg-type]
+
+        delivered = await hub.broadcast_distress(
+            descriptor="orange shirt", location="center"
+        )
+
+        expected = {
+            "type": "distress",
+            "message": "Alert🚨: orange shirt in center of frame possibly in distress🚨",
+            "descriptor": "orange shirt",
+            "location": "center",
+        }
+        self.assertEqual(delivered, 2)
+        self.assertEqual(laptop.messages, [expected])
+        self.assertEqual(phone.messages, [expected])
+
+    def test_gemini_descriptions_are_limited_to_two_words(self) -> None:
+        self.assertEqual(clean_person_descriptor("Pink swimsuit."), "pink swimsuit")
+        self.assertEqual(clean_person_descriptor("bright orange swimming trunks"), "bright orange")
+        self.assertEqual(clean_person_descriptor("!!!"), "tracked person")
 
 
 if __name__ == "__main__":

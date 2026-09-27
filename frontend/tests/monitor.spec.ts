@@ -57,4 +57,16 @@ test('sends an emergency notification and displays incoming phone alerts until s
 
   await page.getByRole('button', { name: 'Stop Alert' }).click()
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
+
+  alertSocket?.send(JSON.stringify({
+    type: 'distress',
+    message: 'Alert🚨: orange shirt in center of frame possibly in distress🚨',
+    descriptor: 'orange shirt',
+    location: 'center',
+  }))
+  const distressAlert = page.getByRole('alertdialog')
+  await expect(distressAlert).toBeVisible()
+  await expect(distressAlert).toHaveClass(/is-flashing/)
+  await expect(page.getByText('Possible distress detected')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Alert🚨: orange shirt in center of frame possibly in distress🚨' })).toBeVisible()
 })

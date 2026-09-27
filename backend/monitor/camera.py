@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from threading import Event, Lock, Thread
 import time
-from typing import Iterator
+from typing import Callable, Iterator, Literal
 
 from .risk import BoundingBox, MovementRiskTracker
 
@@ -17,6 +17,13 @@ class CameraStatus:
     people: int
     highest_risk: float
     error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class CriticalPersonDetection:
+    track_id: int
+    location: Literal["left", "center", "right"]
+    image_jpeg: bytes
 
 
 class _YoloPersonTracker:
@@ -48,7 +55,13 @@ class _YoloPersonTracker:
 
 
 class CameraMonitor:
-    def __init__(self, *, camera_index: int = 0, model_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        camera_index: int = 0,
+        model_path: Path | None = None,
+        on_critical: Callable[[CriticalPersonDetection], None] | None = None,
+    ) -> None:
         self.camera_index = camera_index
         self.model_path = model_path or Path(__file__).resolve().parents[2] / "models" / "yolo11s.pt"
         self._lock = Lock()
@@ -58,6 +71,12 @@ class CameraMonitor:
         self._people = 0
         self._highest_risk = 0.0
         self._error: str | None = None
+        self._on_critical = on_critical
+
+    def set_critical_callback(
+        self, callback: Callable[[CriticalPersonDetection], None]
+    ) -> None:
+        self._on_critical = callback
 
     def start(self) -> None:
         with self._lock:
@@ -133,6 +152,45 @@ class CameraMonitor:
             -1,
         )
 
+    @staticmethod
+    def _frame_location(box: list[int], frame_width: int) -> Literal["left", "center", "right"]:
+        center_x = (box[0] + box[2]) / 2
+        if center_x < frame_width / 3:
+            return "left"
+        if center_x > frame_width * 2 / 3:
+            return "right"
+        return "center"
+
+    def _notify_critical(self, frame, track_id: int, box: list[int]) -> None:
+        if self._on_critical is None:
+            return
+        import cv2
+
+        height, width = frame.shape[:2]
+        x1, y1, x2, y2 = box
+        padding_x = max(8, round((x2 - x1) * 0.16))
+        padding_y = max(8, round((y2 - y1) * 0.12))
+        crop = frame[
+            max(0, y1 - padding_y) : min(height, y2 + padding_y),
+            max(0, x1 - padding_x) : min(width, x2 + padding_x),
+        ]
+        if crop.size == 0:
+            return
+        encoded, buffer = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 88])
+        if not encoded:
+            return
+        try:
+            self._on_critical(
+                CriticalPersonDetection(
+                    track_id=track_id,
+                    location=self._frame_location(box, width),
+                    image_jpeg=buffer.tobytes(),
+                )
+            )
+        except Exception:
+            # Alert delivery must never stop the camera-processing loop.
+            return
+
     def _run(self) -> None:
         import cv2
 
@@ -147,6 +205,7 @@ class CameraMonitor:
 
             detector = _YoloPersonTracker(self.model_path)
             risks = MovementRiskTracker(seconds_to_red=10.0)
+            alerted_track_ids: set[int] = set()
             started = time.monotonic()
             while not self._stop.is_set():
                 ok, frame = capture.read()
@@ -168,8 +227,16 @@ class CameraMonitor:
                         frame_height=height,
                     )
                     observations.append(observation)
+                    if observation.risk >= 0.995 and track_id not in alerted_track_ids:
+                        alerted_track_ids.add(track_id)
+                        self._notify_critical(frame, track_id, coordinates)
                     self._draw_person(frame, track_id, coordinates, observation.risk)
                 risks.remove_stale(timestamp=timestamp, active_ids=active_ids)
+                alerted_track_ids = {
+                    track_id
+                    for track_id in alerted_track_ids
+                    if risks.has_track(track_id)
+                }
                 encoded, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 84])
                 if not encoded:
                     continue

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
@@ -19,7 +20,13 @@ from backend.demo import (
     select_demo_videos,
 )
 from backend.metadata import VideoNotFoundError, load_video_metadata
-from backend.monitor import CameraMonitor, EmergencyAlertHub
+from backend.monitor import (
+    CameraMonitor,
+    CriticalPersonDetection,
+    EmergencyAlertHub,
+    GeminiPersonDescriptor,
+    PersonDescriptionUnavailable,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +37,8 @@ demo = SimulatedDemoService(metadata)
 gemini = GeminiAnswerVerifier()
 camera = CameraMonitor(camera_index=0)
 emergency_alerts = EmergencyAlertHub()
+person_descriptor = GeminiPersonDescriptor()
+application_loop: asyncio.AbstractEventLoop | None = None
 
 app = FastAPI(title="Lifeguard AI", version="0.2.0")
 app.add_middleware(
@@ -44,6 +53,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def _announce_critical_person(detection: CriticalPersonDetection) -> None:
+    try:
+        descriptor = await asyncio.wait_for(
+            asyncio.to_thread(person_descriptor.describe, detection.image_jpeg),
+            timeout=4.0,
+        )
+    except (PersonDescriptionUnavailable, TimeoutError):
+        descriptor = "tracked person"
+    await emergency_alerts.broadcast_distress(
+        descriptor=descriptor,
+        location=detection.location,
+    )
+
+
+def _schedule_critical_person(detection: CriticalPersonDetection) -> None:
+    if application_loop is None or not application_loop.is_running():
+        return
+    asyncio.run_coroutine_threadsafe(
+        _announce_critical_person(detection), application_loop
+    )
+
+
+@app.on_event("startup")
+async def configure_critical_alerts() -> None:
+    global application_loop
+    application_loop = asyncio.get_running_loop()
+    camera.set_critical_callback(_schedule_critical_person)
 
 
 class StrictRequest(BaseModel):

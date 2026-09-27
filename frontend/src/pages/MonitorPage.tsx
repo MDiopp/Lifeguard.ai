@@ -13,10 +13,10 @@ type MonitorStatus = {
 type MonitorState = 'monitoring' | 'elevated' | 'critical'
 type AlertMessage =
   | { type: 'emergency'; message: string }
+  | { type: 'distress'; message: string; descriptor: string; location: 'left' | 'center' | 'right' }
   | { type: 'sent'; recipients: number }
   | { type: 'error'; message: string }
-
-const emergencyMessage = 'Critical Alert🚨: Your child is unsupervised near your pool 🚨'
+type ActiveAlert = { kind: 'emergency' | 'distress'; message: string }
 
 const emptyStatus: MonitorStatus = {
   running: false,
@@ -32,7 +32,7 @@ export default function MonitorPage() {
   const [stopped, setStopped] = useState(false)
   const [message, setMessage] = useState('')
   const [alertChannelReady, setAlertChannelReady] = useState(false)
-  const [emergencyActive, setEmergencyActive] = useState(false)
+  const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null)
   const alertSocket = useRef<WebSocket | null>(null)
   const alertClientId = useRef(`monitor-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const state: MonitorState = status.highest_risk >= .8
@@ -84,8 +84,8 @@ export default function MonitorPage() {
       socket.addEventListener('message', event => {
         try {
           const alert = JSON.parse(String(event.data)) as AlertMessage
-          if (alert.type === 'emergency') {
-            setEmergencyActive(true)
+          if (alert.type === 'emergency' || alert.type === 'distress') {
+            setActiveAlert({ kind: alert.type, message: alert.message })
           } else if (alert.type === 'sent') {
             setMessage(alert.recipients > 0
               ? `Emergency notification sent to ${alert.recipients} connected device${alert.recipients === 1 ? '' : 's'}.`
@@ -139,7 +139,7 @@ export default function MonitorPage() {
   }
 
   function stopEmergencyAlert() {
-    setEmergencyActive(false)
+    setActiveAlert(null)
   }
 
   const percent = Math.round(status.highest_risk * 100)
@@ -179,10 +179,10 @@ export default function MonitorPage() {
           </aside>
         </div>
       </main>
-      {emergencyActive && <div className="monitor-emergency-alert" role="alertdialog" aria-modal="true" aria-labelledby="emergency-alert-title">
+      {activeAlert && <div className={`monitor-emergency-alert ${activeAlert.kind === 'distress' ? 'is-flashing' : ''}`} role="alertdialog" aria-modal="true" aria-labelledby="emergency-alert-title">
         <div className="monitor-emergency-alert-content">
-          <p className="monitor-emergency-label">Emergency notification</p>
-          <h2 id="emergency-alert-title">{emergencyMessage}</h2>
+          <p className="monitor-emergency-label">{activeAlert.kind === 'distress' ? 'Possible distress detected' : 'Emergency notification'}</p>
+          <h2 id="emergency-alert-title">{activeAlert.message}</h2>
           <button type="button" onClick={stopEmergencyAlert}>Stop Alert</button>
         </div>
       </div>}

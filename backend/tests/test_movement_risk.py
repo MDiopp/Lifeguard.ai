@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import unittest
 
-from backend.monitor import BoundingBox, MovementRiskTracker
+from backend.monitor import BoundingBox, CameraMonitor, MovementRiskTracker
 
 
 class MovementRiskTrackerTests(unittest.TestCase):
+    def test_person_location_uses_frame_thirds(self) -> None:
+        self.assertEqual(CameraMonitor._frame_location([0, 10, 100, 200], 900), "left")
+        self.assertEqual(CameraMonitor._frame_location([350, 10, 550, 200], 900), "center")
+        self.assertEqual(CameraMonitor._frame_location([800, 10, 900, 200], 900), "right")
+
     def test_quiet_jitter_stays_green(self) -> None:
         tracker = MovementRiskTracker()
         observation = None

@@ -56,12 +56,18 @@
 .monitor-explanation > p:last-child { margin: 0; color: var(--secondary); font-size: 13px; line-height: 1.75; }
 .monitor-action-feedback { min-height: 20px; color: var(--secondary); font-size: 11px; line-height: 1.6; }
 .monitor-emergency-alert { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: var(--space-6); background: #b92f2ff2; color: var(--white); text-align: center; }
+.monitor-emergency-alert.is-flashing { animation: monitor-critical-flash .72s ease-in-out infinite alternate; }
 .monitor-emergency-alert-content { width: min(680px, 100%); }
 .monitor-emergency-label { margin: 0 0 var(--space-6); font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
 .monitor-emergency-alert h2 { margin: 0; font: 500 clamp(38px, 7vw, 72px)/1.08 var(--font-display); letter-spacing: -.04em; text-wrap: balance; }
 .monitor-emergency-alert button { min-width: 180px; min-height: 52px; margin-top: var(--space-8); padding: var(--space-3) var(--space-8); border: 2px solid var(--white); border-radius: 999px; background: var(--white); color: var(--critical); font-size: 16px; font-weight: 800; }
 .monitor-emergency-alert button:hover { background: transparent; color: var(--white); }
+@keyframes monitor-critical-flash {
+  from { background: #8f2020f5; }
+  to { background: #e03b3bf8; }
+}
 .monitor-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding: var(--space-6) var(--monitor-gutter); border-top: 1px solid #173f471a; color: var(--secondary); font-size: 11px; }
 .monitor-footer p { margin: 0; color: var(--ink); font: italic 400 20px var(--font-display); }
 @media (max-width: 1000px) { .monitor-page { --monitor-gutter: var(--space-8); } .monitor-workspace { grid-template-columns: 1fr; } .monitor-attention { padding-left: 0; border-left: 0; } }
 @media (max-width: 620px) { .monitor-page { --monitor-gutter: var(--space-6); } .monitor-page .site-header { align-items: flex-start; flex-direction: column; gap: var(--space-3); } .monitor-page .home-nav { width: 100%; justify-content: space-between; gap: var(--space-3); } .monitor-page .home-nav a { font-size: 10px; } .monitor-page-heading { align-items: flex-start; } .monitor-camera-label { display: none; } .monitor-feed-heading { align-items: flex-start; flex-direction: column; } .monitor-feed-caption { align-items: flex-start; flex-direction: column; } .monitor-footer { align-items: flex-start; flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { .monitor-emergency-alert.is-flashing { animation: none; background: var(--critical); } }
