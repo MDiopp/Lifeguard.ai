@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Path as ApiPath
+from fastapi import FastAPI, HTTPException, Path as ApiPath, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,7 +19,7 @@ from backend.demo import (
     select_demo_videos,
 )
 from backend.metadata import VideoNotFoundError, load_video_metadata
-from backend.monitor import CameraMonitor
+from backend.monitor import CameraMonitor, EmergencyAlertHub
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +29,7 @@ metadata = load_video_metadata()
 demo = SimulatedDemoService(metadata)
 gemini = GeminiAnswerVerifier()
 camera = CameraMonitor(camera_index=0)
+emergency_alerts = EmergencyAlertHub()
 
 app = FastAPI(title="Lifeguard AI", version="0.2.0")
 app.add_middleware(
@@ -197,6 +198,27 @@ def monitor_stream() -> StreamingResponse:
         media_type="multipart/x-mixed-replace; boundary=frame",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.websocket("/api/monitor/alerts")
+async def monitor_alerts(websocket: WebSocket, client_id: str) -> None:
+    await emergency_alerts.connect(websocket, client_id)
+    try:
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") != "emergency":
+                await websocket.send_json(
+                    {"type": "error", "message": "unsupported alert message"}
+                )
+                continue
+            recipients = await emergency_alerts.broadcast_emergency(
+                source_client_id=client_id
+            )
+            await websocket.send_json({"type": "sent", "recipients": recipients})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        emergency_alerts.disconnect(websocket)
 
 
 @app.on_event("shutdown")

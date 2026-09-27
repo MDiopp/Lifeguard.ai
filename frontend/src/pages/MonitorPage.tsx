@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SiteHeader } from '../components/SiteHeader'
 import { MonitorFeed } from '../monitor/MonitorFeed'
 import './MonitorPage.css'
@@ -11,6 +11,12 @@ type MonitorStatus = {
   error: string | null
 }
 type MonitorState = 'monitoring' | 'elevated' | 'critical'
+type AlertMessage =
+  | { type: 'emergency'; message: string }
+  | { type: 'sent'; recipients: number }
+  | { type: 'error'; message: string }
+
+const emergencyMessage = 'Critical Alert🚨: Your child is unsupervised near your pool 🚨'
 
 const emptyStatus: MonitorStatus = {
   running: false,
@@ -25,6 +31,10 @@ export default function MonitorPage() {
   const [streamKey, setStreamKey] = useState(Date.now())
   const [stopped, setStopped] = useState(false)
   const [message, setMessage] = useState('')
+  const [alertChannelReady, setAlertChannelReady] = useState(false)
+  const [emergencyActive, setEmergencyActive] = useState(false)
+  const alertSocket = useRef<WebSocket | null>(null)
+  const alertClientId = useRef(`monitor-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   const state: MonitorState = status.highest_risk >= .8
     ? 'critical'
     : status.highest_risk >= .4
@@ -62,6 +72,46 @@ export default function MonitorPage() {
     }
   }, [readStatus])
 
+  useEffect(() => {
+    let disposed = false
+    let reconnectTimer: number | undefined
+
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const socket = new WebSocket(`${protocol}//${window.location.host}/api/monitor/alerts?client_id=${encodeURIComponent(alertClientId.current)}`)
+      alertSocket.current = socket
+      socket.addEventListener('open', () => setAlertChannelReady(true))
+      socket.addEventListener('message', event => {
+        try {
+          const alert = JSON.parse(String(event.data)) as AlertMessage
+          if (alert.type === 'emergency') {
+            setEmergencyActive(true)
+          } else if (alert.type === 'sent') {
+            setMessage(alert.recipients > 0
+              ? `Emergency notification sent to ${alert.recipients} connected device${alert.recipients === 1 ? '' : 's'}.`
+              : 'No other phone or browser is connected to receive the alert.')
+          } else if (alert.type === 'error') {
+            setMessage(alert.message)
+          }
+        } catch {
+          setMessage('An invalid emergency alert was received.')
+        }
+      })
+      socket.addEventListener('close', () => {
+        setAlertChannelReady(false)
+        if (!disposed) reconnectTimer = window.setTimeout(connect, 1500)
+      })
+      socket.addEventListener('error', () => setAlertChannelReady(false))
+    }
+
+    connect()
+    return () => {
+      disposed = true
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
+      alertSocket.current?.close()
+    }
+  }, [])
+
   async function startCamera() {
     setMessage('Starting the camera and person detector…')
     setStopped(false)
@@ -76,6 +126,20 @@ export default function MonitorPage() {
     setStopped(true)
     setStatus(emptyStatus)
     setMessage('Camera stopped and released.')
+  }
+
+  function sendEmergencyNotification() {
+    const socket = alertSocket.current
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setMessage('Emergency notification channel is still connecting.')
+      return
+    }
+    socket.send(JSON.stringify({ type: 'emergency' }))
+    setMessage('Sending emergency notification…')
+  }
+
+  function stopEmergencyAlert() {
+    setEmergencyActive(false)
   }
 
   const percent = Math.round(status.highest_risk * 100)
@@ -106,12 +170,22 @@ export default function MonitorPage() {
               <div><dt>Processing</dt><dd>{status.ready ? 'Live' : status.running ? 'Loading model' : 'Stopped'}</dd></div>
             </dl>
             {status.error && <p className="monitor-error" role="alert">{status.error}</p>}
-            <div className="monitor-actions"><button className="monitor-button" onClick={() => void (stopped || !status.running ? startCamera() : stopCamera())}>{stopped || !status.running ? 'Start Camera' : 'Stop Camera'}</button></div>
+            <div className="monitor-actions">
+              <button className="monitor-button" onClick={() => void (stopped || !status.running ? startCamera() : stopCamera())}>{stopped || !status.running ? 'Start Camera' : 'Stop Camera'}</button>
+              <button className="monitor-button monitor-button-emergency" disabled={!alertChannelReady} onClick={sendEmergencyNotification}>Emergency Notification</button>
+            </div>
             <div className="monitor-explanation"><p className="monitor-overline">How the bars move</p><p>Each person’s bar rises while their tracked movement remains strong or changes direction repeatedly. It falls gradually when movement settles.</p></div>
             <p className="monitor-action-feedback" role="status">{message}</p>
           </aside>
         </div>
       </main>
+      {emergencyActive && <div className="monitor-emergency-alert" role="alertdialog" aria-modal="true" aria-labelledby="emergency-alert-title">
+        <div className="monitor-emergency-alert-content">
+          <p className="monitor-emergency-label">Emergency notification</p>
+          <h2 id="emergency-alert-title">{emergencyMessage}</h2>
+          <button type="button" onClick={stopEmergencyAlert}>Stop Alert</button>
+        </div>
+      </div>}
       <footer className="monitor-footer"><p>Human judgment, always.</p><span>Camera 0 · Movement-based risk</span></footer>
     </div>
   )
