@@ -30,13 +30,13 @@ class SimulatedDemoServiceTests(unittest.TestCase):
         cls.metadata = load_video_metadata()
 
     def test_easy_and_hard_ranges_use_inclusive_hundredths(self) -> None:
-        easy_random = FixedRandom(1237)
+        easy_random = FixedRandom(1537)
         hard_random = FixedRandom(2699)
         easy = SimulatedDemoService(self.metadata, random_source=easy_random).start_round("easy_01")
         hard = SimulatedDemoService(self.metadata, random_source=hard_random).start_round("hard_02")
-        self.assertEqual(easy_random.bounds, (1200, 1400))
+        self.assertEqual(easy_random.bounds, (1400, 1600))
         self.assertEqual(hard_random.bounds, (2500, 2700))
-        self.assertEqual(easy.ai_answer_time, 12.37)
+        self.assertEqual(easy.ai_answer_time, 15.37)
         self.assertEqual(hard.ai_answer_time, 26.99)
 
     def test_human_time_and_verdict_are_recorded_once(self) -> None:

@@ -33,6 +33,12 @@ const roundCopy = [
   { title: 'Now the water gets busier.', description: 'The change is subtler this time. Stay focused on the whole pool.' },
 ] as const
 const lastDemoStorageKey = 'lifeguard-ai:last-demo-videos'
+const confettiPieces = Array.from({ length: 42 }, (_, index) => ({
+  left: `${(index * 37) % 101}%`,
+  delay: `${(index * 71) % 650}ms`,
+  duration: `${2200 + ((index * 97) % 700)}ms`,
+  color: index % 5,
+}))
 
 const winnerCopy = {
   human: 'You noticed first.',
@@ -48,6 +54,22 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(body?.detail || `Request failed (${response.status})`)
   }
   return response.json() as Promise<T>
+}
+
+function ChallengeCelebration({ winner }: { winner: 'human' | 'ai' }) {
+  return <div className={`demo-celebration is-${winner}`} role="status" aria-live="polite">
+    {winner === 'human' && <><div className="demo-trophy" aria-hidden="true">
+      <svg viewBox="0 0 120 120" role="presentation">
+        <path d="M36 19h48v18c0 23-9 37-24 42C45 74 36 60 36 37Z" fill="#f7c75b" stroke="#9a6419" strokeWidth="4" />
+        <path d="M36 27H20v10c0 14 8 24 22 27M84 27h16v10c0 14-8 24-22 27" fill="none" stroke="#d99a2b" strokeWidth="7" strokeLinecap="round" />
+        <path d="M51 76h18v16H51zM39 92h42v12H39z" fill="#d99a2b" stroke="#9a6419" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M47 29h25" stroke="#fff4bf" strokeWidth="5" strokeLinecap="round" opacity=".9" />
+      </svg>
+    </div>
+    <div className="demo-confetti" aria-hidden="true">{confettiPieces.map((piece, index) => <i key={index} className={`confetti-${piece.color}`} style={{ left: piece.left, animationDelay: piece.delay, animationDuration: piece.duration }} />)}</div></>}
+    {winner === 'ai' && <div className="demo-machine-flash" aria-hidden="true" />}
+    <p className="demo-celebration-message">{winner === 'human' ? 'Victory for Humanity!😃' : 'Total Machine Domination🤖'}</p>
+  </div>
 }
 
 function readPreviousDemoVideos(): string[] {
@@ -80,10 +102,14 @@ export default function DemoPage() {
   const [videoEnded, setVideoEnded] = useState(false)
   const [rounds, setRounds] = useState<RoundConfig[]>([])
   const [selectionLoading, setSelectionLoading] = useState(true)
+  const [celebrate, setCelebrate] = useState(false)
   const ending = useRef(false)
   const stateHeading = useRef<HTMLHeadingElement>(null)
   const config = rounds[roundIndex] ?? { videoId: '', ...roundCopy[roundIndex] }
   const playing = (phase === 'active' || phase === 'submitted') && !paused && !mediaError
+  const humanWins = results.filter(item => item.first === 'human').length
+  const aiWins = results.filter(item => item.first === 'ai').length
+  const challengeWinner = humanWins > aiWins ? 'human' : aiWins > humanWins ? 'ai' : null
 
   useEffect(() => { document.title = 'Human vs AI — Lifeguard AI' }, [])
   const loadRoundSelection = useCallback(async () => {
@@ -110,6 +136,15 @@ export default function DemoPage() {
   useEffect(() => {
     if (phase === 'results' || phase === 'complete') stateHeading.current?.focus()
   }, [phase])
+  useEffect(() => {
+    if (phase !== 'complete' || challengeWinner === null) {
+      setCelebrate(false)
+      return
+    }
+    setCelebrate(true)
+    const timer = window.setTimeout(() => setCelebrate(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [phase, challengeWinner])
   useEffect(() => {
     if (phase !== 'countdown' || paused) return
     const timer = window.setTimeout(() => {
@@ -249,12 +284,21 @@ export default function DemoPage() {
 
         {phase === 'results' && result && round && <section className="demo-results" aria-labelledby="result-title">
           <p className="demo-eyebrow">Round {roundIndex + 1} · The reveal</p><h2 id="result-title" ref={stateHeading} tabIndex={-1}>{winnerCopy[result.first]}</h2><p className="demo-results-note">Times are measured from the start of the clip.</p>
-          <div className="demo-comparison"><article className={result.first === 'human' ? 'is-winner' : undefined}><p className="demo-eyebrow">You · Human attention</p><strong className="demo-result-time">{result.human ? result.human.time.toFixed(2) : '—'}{result.human && <small>s</small>}</strong><p>{result.human?.answer || 'No answer submitted'}</p><span className={`demo-outcome ${result.human?.correct ? 'is-correct' : ''}`}>{result.human?.correct ? 'Correct answer' : result.human ? 'Different person described' : 'No answer this round'}</span></article><article className={result.first === 'ai' ? 'is-winner' : undefined}><p className="demo-eyebrow">Lifeguard AI</p><strong className="demo-result-time">{result.ai.time === null ? '—' : result.ai.time.toFixed(2)}{result.ai.time !== null && <small>s</small>}</strong><p>{result.ai.answer || 'No answer'}</p><span className={`demo-outcome ${result.ai.correct ? 'is-correct' : ''}`}>{result.ai.correct ? 'Correct detection' : result.ai.answered ? 'Different person detected' : 'No detection submitted'}</span></article></div>
+          <div className="demo-comparison">
+            <div className={`demo-contender ${result.first === 'human' ? 'is-winner' : result.first === 'tie' ? 'is-tie' : 'is-loser'}`}>
+              <article>{result.first === 'human' && <span className={`demo-winner-badge ${result.human?.correct && result.ai.correct ? 'is-fastest' : ''}`}>{result.human?.correct && result.ai.correct ? 'Fastest' : 'Winner'}</span>}<p className="demo-eyebrow">You · Human attention</p><strong className="demo-result-time">{result.human ? result.human.time.toFixed(2) : '—'}{result.human && <small>s</small>}</strong><p>{result.human?.answer || 'No answer submitted'}</p></article>
+              <div className="demo-outcome-detail"><span className={`demo-outcome ${result.human?.correct ? 'is-correct' : 'is-incorrect'}`}>{result.human?.correct ? 'Correct answer' : result.human ? 'Different person described' : 'No answer this round'}</span></div>
+            </div>
+            <div className={`demo-contender ${result.first === 'ai' ? 'is-winner' : result.first === 'tie' ? 'is-tie' : 'is-loser'}`}>
+              <article>{result.first === 'ai' && <span className={`demo-winner-badge ${result.human?.correct && result.ai.correct ? 'is-fastest' : ''}`}>{result.human?.correct && result.ai.correct ? 'Fastest' : 'Winner'}</span>}<p className="demo-eyebrow">Lifeguard AI</p><strong className="demo-result-time">{result.ai.time === null ? '—' : result.ai.time.toFixed(2)}{result.ai.time !== null && <small>s</small>}</strong><p>{result.ai.answer || 'No answer'}</p></article>
+              <div className="demo-outcome-detail"><span className={`demo-outcome ${result.ai.correct ? 'is-correct' : 'is-incorrect'}`}>{result.ai.correct ? 'Correct detection' : result.ai.answered ? 'Different person detected' : 'No detection submitted'}</span></div>
+            </div>
+          </div>
           <div className="demo-reveal-detail"><video src={round.video_url} controls muted playsInline preload="metadata" /><div><p className="demo-eyebrow">Round replay</p><h3>Review the moment.</h3><p>Compare when you responded with the AI detection time.</p></div></div>
           <div className="demo-result-actions"><p>Different strengths. One shared purpose.</p><button className="demo-button" onClick={() => roundIndex === 0 ? resetRound(1) : setPhase('complete')}>{roundIndex === 0 ? 'Continue to Round 2' : 'Finish challenge'} <span aria-hidden="true">↗</span></button></div>
         </section>}
 
-        {phase === 'complete' && <section className="demo-complete" aria-labelledby="complete-title"><p className="demo-eyebrow">Two rounds complete</p><h2 id="complete-title" ref={stateHeading} tabIndex={-1}>Better, <em>together.</em></h2><p className="demo-complete-lead">In the challenge, Human vs AI.<br />At the pool, Human <strong>+ AI.</strong></p><div className="demo-summary">{results.map((item, index) => <div key={item.round_id}><span>Round {index + 1}</span><strong>{winnerCopy[item.first]}</strong><span>{item.human?.correct ? `${item.human.time.toFixed(2)}s` : 'AI result'}</span></div>)}</div><div className="demo-complete-actions"><button className="demo-button" disabled={selectionLoading} onClick={() => { setResults([]); resetRound(0); void loadRoundSelection() }}>{selectionLoading ? 'Choosing clips…' : 'Try again'}</button><a className="demo-button demo-button-secondary" href="/">Back to home</a></div></section>}
+        {phase === 'complete' && <section className="demo-complete" aria-labelledby="complete-title">{celebrate && challengeWinner && <ChallengeCelebration winner={challengeWinner} />}<p className="demo-eyebrow">Two rounds complete</p><h2 id="complete-title" ref={stateHeading} tabIndex={-1}>Better, <em>together.</em></h2><p className="demo-complete-lead">In the challenge, Human vs AI.<br />At the pool, Human <strong>+ AI.</strong></p><div className="demo-summary">{results.map((item, index) => <div key={item.round_id}><span>Round {index + 1}</span><strong>{winnerCopy[item.first]}</strong><span>{item.human?.correct ? `${item.human.time.toFixed(2)}s` : 'AI result'}</span></div>)}</div><div className="demo-complete-actions"><button className="demo-button" disabled={selectionLoading} onClick={() => { setResults([]); resetRound(0); void loadRoundSelection() }}>{selectionLoading ? 'Choosing clips…' : 'Try again'}</button><a className="demo-button demo-button-secondary" href="/">Back to home</a></div></section>}
       </main>
       <footer className="demo-footer"><span>Human attention. An extra layer of care.</span><a href="/">Lifeguard AI <span aria-hidden="true">↗</span></a></footer>
       <svg className="demo-bottom-wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36Q180 0 360 40T720 36T1080 40T1440 24V80H0Z" fill="var(--seafoam)" /><path d="M0 64Q180 22 360 60T720 60T1080 60T1440 48V80H0Z" fill="var(--lagoon)" opacity=".35" /></svg>

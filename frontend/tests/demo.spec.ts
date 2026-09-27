@@ -44,6 +44,12 @@ test('typed description records the first-character time and compares the result
   await expect(page.getByText('Correct answer')).toHaveCount(1)
   await expect(page.getByText('Correct detection')).toBeVisible()
   await expect(page.getByText('Black girl in pink suit')).toHaveCount(0)
+  await expect(page.locator('.demo-contender').first()).toHaveClass(/is-winner/)
+  await expect(page.locator('.demo-contender').last()).toHaveClass(/is-loser/)
+  await expect(page.locator('.demo-contender article + .demo-outcome-detail')).toHaveCount(2)
+  await expect(page.locator('.demo-trophy')).toHaveCount(0)
+  await expect(page.locator('.demo-winner-badge')).toHaveText('Fastest')
+  await expect(page.locator('.demo-winner-badge')).toHaveClass(/is-fastest/)
 })
 
 test('video ending waits for the human answer', async ({ page }) => {
@@ -109,4 +115,64 @@ test('a no-answer AI round waits for the video end and cannot beat a correct hum
   await expect(page.getByRole('heading', { name: 'You noticed first.' })).toBeVisible()
   await expect(page.getByText('No answer', { exact: true })).toBeVisible()
   await expect(page.getByText('No detection submitted')).toBeVisible()
+  await expect(page.locator('.demo-winner-badge')).toHaveText('Winner')
+  await expect(page.locator('.demo-trophy')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Continue to Round 2' }).click()
+  await page.getByRole('button', { name: 'Start Round' }).click()
+  await page.clock.runFor(3000)
+  await page.locator('.demo-stage video').evaluate(video => {
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 15 })
+    video.dispatchEvent(new Event('timeupdate'))
+  })
+  await page.getByLabel('Your answer').fill('girl middle left')
+  await page.getByRole('button', { name: 'Submit answer' }).click()
+  await page.locator('.demo-stage video').dispatchEvent('ended')
+  await expect(page.locator('.demo-page')).toHaveAttribute('data-phase', 'ending')
+  await page.clock.runFor(700)
+  await expect(page.locator('.demo-page')).toHaveAttribute('data-phase', 'results')
+
+  await page.getByRole('button', { name: 'Finish challenge' }).click()
+  await expect(page.locator('.demo-page')).toHaveAttribute('data-phase', 'complete')
+  await expect(page.locator('.demo-trophy')).toBeVisible()
+  await expect(page.getByText('Victory for Humanity!😃')).toBeVisible()
+  await page.clock.runFor(3000)
+  await expect(page.locator('.demo-trophy')).toHaveCount(0)
+  await expect(page.getByText('Victory for Humanity!😃')).toHaveCount(0)
+})
+
+test('an AI challenge win announces machine domination and flashes red', async ({ page }) => {
+  await page.unroute('**/api/demo/selection')
+  await page.route('**/api/demo/selection', route => route.fulfill({ json: { rounds: [{ video_id: 'easy_01', difficulty: 'easy' }, { video_id: 'easy_01', difficulty: 'easy' }] } }))
+  await page.unroute('**/api/demo/rounds/round-easy/result')
+  await page.route('**/api/demo/rounds/round-easy/result', route => route.fulfill({ json: { round_id: 'round-easy', video_id: 'easy_01', ai: { answered: true, time: 5, correct: true, answer: 'Possible distress detected' }, human: { time: 8.42, correct: true, answer: 'girl in the pink suit' }, first: 'ai' } }))
+  await page.clock.install()
+  await page.goto('/demo')
+
+  for (let roundIndex = 0; roundIndex < 2; roundIndex += 1) {
+    await page.getByRole('button', { name: 'Start Round' }).click()
+    await page.clock.runFor(3000)
+    await page.locator('.demo-stage video').evaluate(video => {
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 8.42 })
+      video.dispatchEvent(new Event('timeupdate'))
+    })
+    await page.getByLabel('Your answer').fill('girl in the pink suit')
+    await page.getByRole('button', { name: 'Submit answer' }).click()
+    await page.locator('.demo-stage video').evaluate(video => {
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 12.5 })
+      video.dispatchEvent(new Event('timeupdate'))
+    })
+    await page.clock.runFor(700)
+    await expect(page.locator('.demo-page')).toHaveAttribute('data-phase', 'results')
+    await expect(page.locator('.demo-winner-badge')).toHaveText('Fastest')
+    if (roundIndex === 0) await page.getByRole('button', { name: 'Continue to Round 2' }).click()
+  }
+
+  await page.getByRole('button', { name: 'Finish challenge' }).click()
+  await expect(page.locator('.demo-page')).toHaveAttribute('data-phase', 'complete')
+  await expect(page.getByText('Total Machine Domination🤖')).toBeVisible()
+  await expect(page.locator('.demo-machine-flash')).toBeVisible()
+  await page.clock.runFor(3000)
+  await expect(page.getByText('Total Machine Domination🤖')).toHaveCount(0)
+  await expect(page.locator('.demo-machine-flash')).toHaveCount(0)
 })

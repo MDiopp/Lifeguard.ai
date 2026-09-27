@@ -151,7 +151,8 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
         )
         self.assertEqual(hard_four.ai_answer_time_range.minimum, 12.0)
         self.assertEqual(hard_four.ai_answer_time_range.maximum, 14.0)
-        self.assertEqual(repository.get_by_id("easy_01").ai_answer_time_range.minimum, 12.0)
+        self.assertEqual(repository.get_by_id("easy_01").ai_answer_time_range.minimum, 14.0)
+        self.assertEqual(repository.get_by_id("easy_01").ai_answer_time_range.maximum, 16.0)
         self.assertEqual(repository.get_by_id("hard_01").ai_answer_time_range.maximum, 20.0)
 
     def test_missing_config_has_clear_error(self) -> None:

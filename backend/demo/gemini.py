@@ -11,7 +11,8 @@ class AnswerVerificationUnavailable(RuntimeError):
 
 class _GeminiDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    same_person: bool
+    descriptor_matches: bool
+    location_matches: bool
 
 
 class GeminiAnswerVerifier:
@@ -39,16 +40,19 @@ class GeminiAnswerVerifier:
             response = client.models.generate_content(
                 model=self.model,
                 contents=(
-                    "Decide whether the submitted phrase plausibly identifies the same person as "
-                    "the reference annotation in moving pool footage. Be lenient with short, quickly "
-                    "typed descriptions. Accept ordinary synonyms and partial descriptions when the "
-                    "details given match the reference and do not describe a clearly different person. "
-                    "A submitted phrase does not need to repeat every reference detail; for example, "
-                    "'black girl' can match 'Black girl in pink suit'. Treat camera location only as an "
-                    "approximate supporting clue because swimmers move during the clip. Never reject an "
-                    "otherwise matching person solely because left/right, top/middle/bottom, or location "
-                    "is omitted or differs. Reject only when the submitted identity or appearance clearly "
-                    "contradicts the reference, or when it contains no useful identifying detail.\n\n"
+                    "Evaluate a quickly typed description of a person in pool footage. Return two separate "
+                    "booleans. descriptor_matches is true only when the submission contains at least one "
+                    "accurate identifying trait from the reference description, such as boy/girl/man/woman, "
+                    "race, clothing, or clothing color. Generic words such as person, swimmer, someone, or "
+                    "they do not count as an identifying trait. Accept ordinary synonyms, such as woman for "
+                    "girl when the wording could reasonably describe the same person. Any contradictory "
+                    "identity or appearance detail makes descriptor_matches false. location_matches is true "
+                    "only when the submission includes a camera-view direction that is compatible with the "
+                    "reference location. The location may be shorter but must preserve the direction it names: "
+                    "right matches middle-right, top right matches middle/top-right, and middle matches "
+                    "middle-center. Left never matches right, and top never matches bottom. If the submission "
+                    "omits a usable location, location_matches must be false. Do not infer either match from "
+                    "context. The answer is accepted by the application only when both booleans are true.\n\n"
                     f"Reference description: {reference_description}\n"
                     f"Reference camera location: {location}\n"
                     f"Submitted phrase: {submitted}"
@@ -58,19 +62,22 @@ class GeminiAnswerVerifier:
                     response_schema=types.Schema(
                         type=types.Type.OBJECT,
                         properties={
-                            "same_person": types.Schema(type=types.Type.BOOLEAN)
+                            "descriptor_matches": types.Schema(type=types.Type.BOOLEAN),
+                            "location_matches": types.Schema(type=types.Type.BOOLEAN),
                         },
-                        required=["same_person"],
+                        required=["descriptor_matches", "location_matches"],
                     ),
                     temperature=0,
                 ),
             )
             parsed = response.parsed
             if isinstance(parsed, _GeminiDecision):
-                return parsed.same_person
-            if isinstance(parsed, dict):
-                return _GeminiDecision.model_validate(parsed).same_person
-            return _GeminiDecision.model_validate_json(response.text).same_person
+                decision = parsed
+            elif isinstance(parsed, dict):
+                decision = _GeminiDecision.model_validate(parsed)
+            else:
+                decision = _GeminiDecision.model_validate_json(response.text)
+            return decision.descriptor_matches and decision.location_matches
         except AnswerVerificationUnavailable:
             raise
         except Exception as error:
