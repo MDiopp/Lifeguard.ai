@@ -14,6 +14,8 @@ from starlette.concurrency import run_in_threadpool
 from backend.demo import (
     AnswerVerificationUnavailable,
     GeminiAnswerVerifier,
+    GeminiFirstAnswerVerifier,
+    LocalAnswerVerifier,
     RoundAlreadySubmittedError,
     RoundNotFoundError,
     SimulatedDemoService,
@@ -35,6 +37,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 metadata = load_video_metadata()
 demo = SimulatedDemoService(metadata)
 gemini = GeminiAnswerVerifier()
+answer_verifier = GeminiFirstAnswerVerifier(gemini, LocalAnswerVerifier())
 camera = CameraMonitor(camera_index=0)
 emergency_alerts = EmergencyAlertHub()
 person_descriptor = GeminiPersonDescriptor()
@@ -152,7 +155,7 @@ async def submit_human_answer(
             round_id,
             answer=request.answer,
             started_at=request.started_at,
-            verifier=gemini,
+            verifier=answer_verifier,
         )
     except RoundNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error

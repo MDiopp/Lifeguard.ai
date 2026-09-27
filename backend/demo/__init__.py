@@ -7,11 +7,14 @@ from .simulation import (
     SimulatedRound,
 )
 from .selection import select_demo_videos
+from .verification import GeminiFirstAnswerVerifier, LocalAnswerVerifier
 
 __all__ = [
     "AnswerVerificationUnavailable",
     "GeminiAnswerVerifier",
+    "GeminiFirstAnswerVerifier",
     "HumanSubmission",
+    "LocalAnswerVerifier",
     "RoundAlreadySubmittedError",
     "RoundNotFoundError",
     "SimulatedDemoService",

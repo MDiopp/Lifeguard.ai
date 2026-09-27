@@ -35,7 +35,10 @@ class GeminiAnswerVerifier:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=self.api_key)
+            client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(timeout=4000),
+            )
             location = reference_location or "not provided"
             response = client.models.generate_content(
                 model=self.model,

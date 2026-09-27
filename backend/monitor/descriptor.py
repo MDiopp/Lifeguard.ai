@@ -28,7 +28,10 @@ class GeminiPersonDescriptor:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=self.api_key)
+            client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(timeout=3500),
+            )
             response = client.models.generate_content(
                 model=self.model,
                 contents=[
