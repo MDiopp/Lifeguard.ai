@@ -6,6 +6,7 @@ from .simulation import (
     SimulatedDemoService,
     SimulatedRound,
 )
+from .selection import select_demo_videos
 
 __all__ = [
     "AnswerVerificationUnavailable",
@@ -15,4 +16,5 @@ __all__ = [
     "RoundNotFoundError",
     "SimulatedDemoService",
     "SimulatedRound",
+    "select_demo_videos",
 ]

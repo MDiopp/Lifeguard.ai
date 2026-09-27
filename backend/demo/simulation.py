@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from random import SystemRandom
 from threading import Lock
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from backend.metadata import VideoMetadata, VideoMetadataRepository
@@ -43,12 +43,39 @@ class HumanSubmission:
 class SimulatedRound:
     round_id: str
     video: VideoMetadata
-    ai_answer_time: float
+    ai_answer_time: float | None
     human_submission: HumanSubmission | None = None
 
     @property
     def target(self):
         return self.video.distressed_swimmers[0]
+
+    @property
+    def ai_answer(self) -> str | None:
+        configured = self.video.simulated_ai_answer
+        return configured.answer if configured is not None else "Possible distress detected"
+
+    @property
+    def ai_answered(self) -> bool:
+        return self.ai_answer is not None
+
+    @property
+    def ai_correct(self) -> bool:
+        configured = self.video.simulated_ai_answer
+        return configured.correct if configured is not None else True
+
+    def winner(self) -> Literal["human", "ai", "tie", "none"]:
+        human_correct = self.human_submission is not None and self.human_submission.correct
+        if human_correct and self.ai_correct and self.ai_answer_time is not None:
+            difference = self.human_submission.started_at - self.ai_answer_time
+            if abs(difference) < 0.005:
+                return "tie"
+            return "human" if difference < 0 else "ai"
+        if human_correct:
+            return "human"
+        if self.ai_correct:
+            return "ai"
+        return "none"
 
 
 class SimulatedDemoService:
@@ -69,13 +96,17 @@ class SimulatedDemoService:
 
     def start_round(self, video_id: str) -> SimulatedRound:
         video = self.repository.get_by_id(video_id)
-        lower = self._hundredths(
-            video.ai_answer_time_range.minimum, ROUND_CEILING
-        )
-        upper = self._hundredths(
-            video.ai_answer_time_range.maximum, ROUND_FLOOR
-        )
-        answer_time = self.random.randint(lower, upper) / 100
+        configured_answer = video.simulated_ai_answer
+        if configured_answer is not None and configured_answer.answer is None:
+            answer_time = None
+        else:
+            lower = self._hundredths(
+                video.ai_answer_time_range.minimum, ROUND_CEILING
+            )
+            upper = self._hundredths(
+                video.ai_answer_time_range.maximum, ROUND_FLOOR
+            )
+            answer_time = self.random.randint(lower, upper) / 100
         round_state = SimulatedRound(
             round_id=uuid4().hex,
             video=video,

@@ -6,6 +6,7 @@ from .models import (
     DemoConfig,
     Difficulty,
     DistressedSwimmerMetadata,
+    SimulatedAIAnswerMetadata,
     VideoMetadata,
 )
 from .repository import (
@@ -31,6 +32,7 @@ __all__ = [
     "JsonVideoMetadataRepository",
     "MalformedConfigError",
     "MetadataValidationError",
+    "SimulatedAIAnswerMetadata",
     "VideoFileNotFoundError",
     "VideoMetadata",
     "VideoMetadataRepository",

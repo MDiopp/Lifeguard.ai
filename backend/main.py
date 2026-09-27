@@ -16,6 +16,7 @@ from backend.demo import (
     RoundAlreadySubmittedError,
     RoundNotFoundError,
     SimulatedDemoService,
+    select_demo_videos,
 )
 from backend.metadata import VideoNotFoundError, load_video_metadata
 from backend.monitor import CameraMonitor
@@ -53,6 +54,10 @@ class HumanAnswerRequest(StrictRequest):
     started_at: float = Field(ge=0, allow_inf_nan=False)
 
 
+class DemoSelectionRequest(StrictRequest):
+    exclude_video_ids: list[str] = Field(default_factory=list, max_length=2)
+
+
 def _get_round(round_id: str):
     try:
         return demo.get_round(round_id)
@@ -63,6 +68,22 @@ def _get_round(round_id: str):
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/demo/selection")
+def select_demo_rounds(request: DemoSelectionRequest) -> dict[str, object]:
+    selected = select_demo_videos(
+        metadata, excluded_video_ids=set(request.exclude_video_ids)
+    )
+    return {
+        "rounds": [
+            {
+                "video_id": video.video_id,
+                "difficulty": video.difficulty.value,
+            }
+            for video in selected
+        ]
+    }
 
 
 @app.post("/api/demo/rounds/{video_id}/start")
@@ -113,21 +134,14 @@ async def submit_human_answer(
 def demo_round_result(round_id: str) -> dict[str, object]:
     round_state = _get_round(round_id)
     human = round_state.human_submission
-    if human is not None and human.correct:
-        if abs(human.started_at - round_state.ai_answer_time) < 0.005:
-            first = "tie"
-        elif human.started_at < round_state.ai_answer_time:
-            first = "human"
-        else:
-            first = "ai"
-    else:
-        first = "ai"
     return {
         "round_id": round_state.round_id,
         "video_id": round_state.video.video_id,
         "ai": {
+            "answered": round_state.ai_answered,
             "time": round_state.ai_answer_time,
-            "correct": True,
+            "correct": round_state.ai_correct,
+            "answer": round_state.ai_answer,
         },
         "human": (
             {
@@ -138,7 +152,7 @@ def demo_round_result(round_id: str) -> dict[str, object]:
             if human is not None
             else None
         ),
-        "first": first,
+        "first": round_state.winner(),
     }
 
 

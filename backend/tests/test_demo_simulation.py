@@ -31,13 +31,13 @@ class SimulatedDemoServiceTests(unittest.TestCase):
 
     def test_easy_and_hard_ranges_use_inclusive_hundredths(self) -> None:
         easy_random = FixedRandom(1237)
-        hard_random = FixedRandom(1999)
+        hard_random = FixedRandom(2699)
         easy = SimulatedDemoService(self.metadata, random_source=easy_random).start_round("easy_01")
-        hard = SimulatedDemoService(self.metadata, random_source=hard_random).start_round("hard_01")
+        hard = SimulatedDemoService(self.metadata, random_source=hard_random).start_round("hard_02")
         self.assertEqual(easy_random.bounds, (1200, 1400))
-        self.assertEqual(hard_random.bounds, (1800, 2000))
+        self.assertEqual(hard_random.bounds, (2500, 2700))
         self.assertEqual(easy.ai_answer_time, 12.37)
-        self.assertEqual(hard.ai_answer_time, 19.99)
+        self.assertEqual(hard.ai_answer_time, 26.99)
 
     def test_human_time_and_verdict_are_recorded_once(self) -> None:
         service = SimulatedDemoService(self.metadata, random_source=FixedRandom(1300))
@@ -60,8 +60,8 @@ class SimulatedDemoServiceTests(unittest.TestCase):
             )
 
     def test_incorrect_human_phrase_does_not_change_the_ai_answer(self) -> None:
-        service = SimulatedDemoService(self.metadata, random_source=FixedRandom(1850))
-        round_state = service.start_round("hard_01")
+        service = SimulatedDemoService(self.metadata, random_source=FixedRandom(2550))
+        round_state = service.start_round("hard_02")
         submission = service.submit_human_answer(
             round_state.round_id,
             answer="person next to the purple float",
@@ -69,8 +69,38 @@ class SimulatedDemoServiceTests(unittest.TestCase):
             verifier=FixedVerifier(False),
         )
         self.assertFalse(submission.correct)
-        self.assertEqual(round_state.ai_answer_time, 18.5)
-        self.assertEqual(round_state.target.description, "White girl")
+        self.assertEqual(round_state.ai_answer_time, 25.5)
+        self.assertEqual(round_state.target.description, "Big black boy")
+
+    def test_configured_no_answer_has_no_time_and_cannot_win(self) -> None:
+        random_source = FixedRandom(1900)
+        service = SimulatedDemoService(self.metadata, random_source=random_source)
+        round_state = service.start_round("hard_01")
+        service.submit_human_answer(
+            round_state.round_id,
+            answer="girl in the middle left",
+            started_at=19.0,
+            verifier=FixedVerifier(True),
+        )
+        self.assertIsNone(round_state.ai_answer_time)
+        self.assertIsNone(round_state.ai_answer)
+        self.assertFalse(round_state.ai_answered)
+        self.assertFalse(round_state.ai_correct)
+        self.assertIsNone(random_source.bounds)
+        self.assertEqual(round_state.winner(), "human")
+
+    def test_deliberately_incorrect_ai_answer_cannot_win(self) -> None:
+        service = SimulatedDemoService(self.metadata, random_source=FixedRandom(1100))
+        round_state = service.start_round("hard_03")
+        service.submit_human_answer(
+            round_state.round_id,
+            answer="black boy in the middle",
+            started_at=15.0,
+            verifier=FixedVerifier(True),
+        )
+        self.assertEqual(round_state.ai_answer, "White girl in middle")
+        self.assertFalse(round_state.ai_correct)
+        self.assertEqual(round_state.winner(), "human")
 
 
 if __name__ == "__main__":

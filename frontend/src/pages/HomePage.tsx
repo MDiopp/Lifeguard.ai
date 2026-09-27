@@ -8,7 +8,12 @@ export function HomePage() {
 
   return (
     <div className="home" data-motion={motion.active ? 'on' : 'off'}>
-      <div className="home-sun" aria-hidden="true"><span /><span /></div>
+      <div className="home-sun" aria-hidden="true">
+        <div className="home-sun-rays">
+          {Array.from({ length: 10 }, (_, index) => <i key={index} />)}
+        </div>
+        <div className="home-sun-core" />
+      </div>
       <div className="home-specks" aria-hidden="true"><i /><i /><i /></div>
       <svg className="home-waves" viewBox="0 0 1440 500" preserveAspectRatio="none" aria-hidden="true" focusable="false">
         <defs>
@@ -25,7 +30,6 @@ export function HomePage() {
             <stop offset="1" stopColor="var(--teal)" stopOpacity=".8" />
           </linearGradient>
         </defs>
-        {/* The high right-hand crests balance the headline without a product card. */}
         <g className="home-wave home-wave-back">
           <path fill="url(#home-seafoam)" d="M-80 246C100 110 236 324 432 238S645 169 810 183 1035 70 1180 38 1390 59 1520 117V560H-80Z" />
         </g>
@@ -39,7 +43,7 @@ export function HomePage() {
         </g>
       </svg>
       <a className="skip-link" href="#main">Skip to content</a>
-      <SiteHeader />
+      <SiteHeader currentPage="home" />
       <main id="main" className="home-main" tabIndex={-1}>
         <section className="introduction" aria-labelledby="hero-title">
           <p className="eyebrow">Pool safety, reimagined</p>

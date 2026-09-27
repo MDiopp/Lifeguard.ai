@@ -28,8 +28,6 @@ def valid_video(video_id: str = "easy_01", difficulty: str = "easy") -> dict:
         "distressed_swimmers": [
             {
                 "id": "swimmer_1",
-                "distress_start": 6.2,
-                "distress_end": 13.8,
                 "description": None,
                 "camera_view_location": None,
             }
@@ -84,11 +82,11 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
         self.assertEqual(document["difficulty"], "easy")
         self.assertEqual(document["ai_answer_time_range"]["minimum"], 8.0)
 
-    def test_checked_in_config_loads_both_annotated_videos(self) -> None:
+    def test_checked_in_config_loads_annotated_videos(self) -> None:
         repository = load_video_metadata()
         self.assertEqual(
             [video.video_id for video in repository.get_all()],
-            ["easy_01", "hard_01"],
+            ["easy_01", "easy_02", "easy_03", "easy_04", "hard_01", "hard_02", "hard_03", "hard_04"],
         )
         easy_swimmer = repository.get_by_id("easy_01").distressed_swimmers[0]
         hard_swimmer = repository.get_by_id("hard_01").distressed_swimmers[0]
@@ -97,7 +95,62 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
             easy_swimmer.camera_view_location,
             CameraViewLocation.MIDDLE_RIGHT,
         )
-        self.assertEqual(hard_swimmer.distress_end, 29.78)
+        easy_two = repository.get_by_id("easy_02")
+        self.assertEqual(easy_two.distressed_swimmers[0].description, "Girl/woman in black")
+        self.assertEqual(
+            easy_two.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_TOP_RIGHT,
+        )
+        easy_three = repository.get_by_id("easy_03")
+        self.assertEqual(easy_three.distressed_swimmers[0].description, "Black boy")
+        self.assertEqual(
+            easy_three.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_TOP_RIGHT,
+        )
+        self.assertEqual(easy_three.ai_answer_time_range.minimum, 10.0)
+        self.assertEqual(easy_three.ai_answer_time_range.maximum, 12.0)
+        easy_four = repository.get_by_id("easy_04")
+        self.assertEqual(easy_four.distressed_swimmers[0].description, "Black boy")
+        self.assertEqual(
+            easy_four.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_TOP_MIDDLE,
+        )
+        self.assertEqual(easy_four.ai_answer_time_range.minimum, 21.0)
+        self.assertEqual(easy_four.ai_answer_time_range.maximum, 23.0)
+        self.assertEqual(hard_swimmer.description, "Girl/woman")
+        self.assertEqual(
+            hard_swimmer.camera_view_location,
+            CameraViewLocation.MIDDLE_TOP_LEFT,
+        )
+        hard_one = repository.get_by_id("hard_01")
+        self.assertIsNone(hard_one.simulated_ai_answer.answer)
+        self.assertFalse(hard_one.simulated_ai_answer.correct)
+        hard_two = repository.get_by_id("hard_02")
+        self.assertEqual(hard_two.distressed_swimmers[0].description, "Big black boy")
+        self.assertEqual(
+            hard_two.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_TOP_MIDDLE_LEFT,
+        )
+        self.assertEqual(hard_two.ai_answer_time_range.minimum, 25.0)
+        self.assertEqual(hard_two.ai_answer_time_range.maximum, 27.0)
+        hard_three = repository.get_by_id("hard_03")
+        self.assertEqual(hard_three.distressed_swimmers[0].description, "Black boy/man")
+        self.assertEqual(
+            hard_three.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_CENTER,
+        )
+        self.assertEqual(hard_three.ai_answer_time_range.minimum, 10.0)
+        self.assertEqual(hard_three.ai_answer_time_range.maximum, 12.0)
+        self.assertEqual(hard_three.simulated_ai_answer.answer, "White girl in middle")
+        self.assertFalse(hard_three.simulated_ai_answer.correct)
+        hard_four = repository.get_by_id("hard_04")
+        self.assertEqual(hard_four.distressed_swimmers[0].description, "Black boy in orange")
+        self.assertEqual(
+            hard_four.distressed_swimmers[0].camera_view_location,
+            CameraViewLocation.MIDDLE_LEFT,
+        )
+        self.assertEqual(hard_four.ai_answer_time_range.minimum, 12.0)
+        self.assertEqual(hard_four.ai_answer_time_range.maximum, 14.0)
         self.assertEqual(repository.get_by_id("easy_01").ai_answer_time_range.minimum, 12.0)
         self.assertEqual(repository.get_by_id("hard_01").ai_answer_time_range.maximum, 20.0)
 
@@ -143,10 +196,8 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
     def test_difficulty_and_time_constraints_are_enforced(self) -> None:
         invalid_cases = [
             ("difficulty", "medium", "difficulty"),
-            ("distress_start", -1, "non-negative"),
-            ("distress_end", 6.2, "greater than distress_start"),
-            ("answer_minimum", 5.0, "must not precede"),
-            ("answer_maximum", 14.0, "must stay within"),
+            ("answer_minimum", -1.0, "greater than or equal to 0"),
+            ("answer_maximum", 7.0, "greater than or equal to minimum"),
         ]
         for field, value, message in invalid_cases:
             with self.subTest(field=field):
@@ -157,8 +208,6 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
                     video["ai_answer_time_range"]["minimum"] = value
                 elif field == "answer_maximum":
                     video["ai_answer_time_range"]["maximum"] = value
-                else:
-                    video["distressed_swimmers"][0][field] = value
                 self.write_config({"videos": {"easy_01": video}})
                 with self.assertRaisesRegex(MetadataValidationError, message):
                     JsonVideoMetadataRepository(self.config_path)
@@ -171,7 +220,7 @@ class VideoMetadataRepositoryTests(unittest.TestCase):
             JsonVideoMetadataRepository(self.config_path)
 
         video = valid_video()
-        video["distressed_swimmers"][0]["distress_start"] = "6.2"
+        video["ai_answer_time_range"]["minimum"] = "6.2"
         self.write_config({"videos": {"easy_01": video}})
         with self.assertRaisesRegex(MetadataValidationError, "valid number"):
             JsonVideoMetadataRepository(self.config_path)

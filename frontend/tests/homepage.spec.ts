@@ -5,7 +5,7 @@ test('entry links expose the requested destinations and support keyboard navigat
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('A Second Layer of Surveillance')
   const navigation = page.getByRole('navigation', { name: 'Main navigation' })
-  for (const [name, path] of [['Monitor', '/monitor'], ['Human vs AI', '/demo'], ['Incidents', '/incidents']]) {
+  for (const [name, path] of [['Monitor', '/monitor'], ['Human vs AI', '/demo'], ['Home', '/']]) {
     await expect(navigation.getByRole('link', { name, exact: true })).toHaveAttribute('href', path)
   }
   const primary = page.getByRole('link', { name: 'Start Monitoring' })
@@ -25,14 +25,14 @@ test('motion pauses, persists across reloads, and follows reduced-motion prefere
   const pause = page.getByRole('button', { name: 'Pause background motion' })
   await pause.click()
   await expect(page.locator('.home')).toHaveAttribute('data-motion', 'off')
-  await expect(page.locator('.home-wave').first()).toHaveCSS('animation-play-state', 'paused')
-  const still = await page.locator('.home-waves').screenshot()
-  expect((await page.locator('.home-waves').screenshot()).equals(still)).toBe(true)
+  await expect(page.locator('.home-sun-rays')).toHaveCSS('animation-play-state', 'paused')
+  await expect(page.locator('.home-wave').first()).toHaveCSS('animation-name', 'none')
   await page.reload()
   await expect(pause).toHaveAttribute('aria-pressed', 'true')
   await pause.click()
   await expect(page.locator('.home')).toHaveAttribute('data-motion', 'on')
-  await expect(page.locator('.home-wave').first()).toHaveCSS('animation-play-state', 'running')
+  await expect(page.locator('.home-sun-rays')).toHaveCSS('animation-play-state', 'running')
+  await expect(page.locator('.home-wave').first()).toHaveCSS('animation-name', 'none')
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect(page.locator('.home')).toHaveAttribute('data-motion', 'off')
   await expect(page.getByRole('button', { name: /following your reduced-motion/ })).toHaveAttribute('aria-disabled', 'true')
@@ -90,4 +90,11 @@ test('homepage works without WebGL and contains no operational dashboard or back
   await expect(page.getByText(/all clear|swimmer count|alert count|risk score|live pool feed/i)).toHaveCount(0)
   expect(forbiddenRequests).toEqual([])
   expect(errors).toEqual([])
+})
+
+test('sun uses triangular rays without circular line decoration', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('.home-sun-core')).toHaveCount(1)
+  await expect(page.locator('.home-sun-rays i')).toHaveCount(10)
+  await expect(page.locator('.home-sun > span')).toHaveCount(0)
 })

@@ -10,25 +10,35 @@ type RoundStart = {
   video_id: string
   difficulty: 'easy' | 'hard'
   video_url: string
-  ai_answer_time: number
+  ai_answer_time: number | null
 }
 type RoundResult = {
   round_id: string
   video_id: string
-  ai: { time: number; correct: true }
+  ai: { answered: boolean; time: number | null; correct: boolean; answer: string | null }
   human: { time: number; correct: boolean; answer: string } | null
-  first: 'human' | 'ai' | 'tie'
+  first: 'human' | 'ai' | 'tie' | 'none'
+}
+type DemoSelection = {
+  rounds: Array<{ video_id: string; difficulty: 'easy' | 'hard' }>
+}
+type RoundConfig = {
+  videoId: string
+  title: string
+  description: string
 }
 
-const rounds = [
-  { videoId: 'easy_01', title: 'Start with the clear signs.', description: 'Watch closely and describe the person you believe needs attention.' },
-  { videoId: 'hard_01', title: 'Now the water gets busier.', description: 'The change is subtler this time. Stay focused on the whole pool.' },
+const roundCopy = [
+  { title: 'Start with the clear signs.', description: 'Watch closely and describe the person you believe needs attention.' },
+  { title: 'Now the water gets busier.', description: 'The change is subtler this time. Stay focused on the whole pool.' },
 ] as const
+const lastDemoStorageKey = 'lifeguard-ai:last-demo-videos'
 
 const winnerCopy = {
   human: 'You noticed first.',
   ai: 'Lifeguard AI noticed first.',
   tie: 'A shared moment of attention.',
+  none: 'No correct detection this round.',
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -38,6 +48,17 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(body?.detail || `Request failed (${response.status})`)
   }
   return response.json() as Promise<T>
+}
+
+function readPreviousDemoVideos(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(lastDemoStorageKey) || '[]')
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string').slice(0, 2)
+      : []
+  } catch {
+    return []
+  }
 }
 
 export default function DemoPage() {
@@ -56,12 +77,36 @@ export default function DemoPage() {
   const [message, setMessage] = useState('')
   const [starting, setStarting] = useState(false)
   const [mediaError, setMediaError] = useState(false)
+  const [videoEnded, setVideoEnded] = useState(false)
+  const [rounds, setRounds] = useState<RoundConfig[]>([])
+  const [selectionLoading, setSelectionLoading] = useState(true)
   const ending = useRef(false)
   const stateHeading = useRef<HTMLHeadingElement>(null)
-  const config = rounds[roundIndex]
+  const config = rounds[roundIndex] ?? { videoId: '', ...roundCopy[roundIndex] }
   const playing = (phase === 'active' || phase === 'submitted') && !paused && !mediaError
 
   useEffect(() => { document.title = 'Human vs AI — Lifeguard AI' }, [])
+  const loadRoundSelection = useCallback(async () => {
+    setSelectionLoading(true)
+    setMessage('')
+    try {
+      const selection = await api<DemoSelection>('/api/demo/selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exclude_video_ids: readPreviousDemoVideos() }),
+      })
+      if (selection.rounds.length !== 2) throw new Error('The demo needs one easy and one hard clip.')
+      setRounds(selection.rounds.map((item, index) => ({
+        videoId: item.video_id,
+        ...roundCopy[index],
+      })))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'The demo clips could not be selected.')
+    } finally {
+      setSelectionLoading(false)
+    }
+  }, [])
+  useEffect(() => { void loadRoundSelection() }, [loadRoundSelection])
   useEffect(() => {
     if (phase === 'results' || phase === 'complete') stateHeading.current?.focus()
   }, [phase])
@@ -73,6 +118,14 @@ export default function DemoPage() {
     }, 1000)
     return () => window.clearTimeout(timer)
   }, [countdown, paused, phase])
+  useEffect(() => {
+    if (phase !== 'results' || roundIndex !== 1 || rounds.length !== 2) return
+    try {
+      localStorage.setItem(lastDemoStorageKey, JSON.stringify(rounds.map(item => item.videoId)))
+    } catch {
+      // The demo still works when browser storage is unavailable.
+    }
+  }, [phase, roundIndex, rounds])
 
   const finishRound = useCallback(async () => {
     if (!round || !humanSubmitted || ending.current) return
@@ -92,9 +145,10 @@ export default function DemoPage() {
   }, [humanSubmitted, round])
 
   useEffect(() => {
-    if (!round || !humanSubmitted || time < round.ai_answer_time) return
+    if (!round || !humanSubmitted) return
+    if (!videoEnded && (round.ai_answer_time === null || time < round.ai_answer_time)) return
     void finishRound()
-  }, [finishRound, humanSubmitted, round, time])
+  }, [finishRound, humanSubmitted, round, time, videoEnded])
 
   function resetRound(index: 0 | 1) {
     setRoundIndex(index)
@@ -111,11 +165,13 @@ export default function DemoPage() {
     setMessage('')
     setStarting(false)
     setMediaError(false)
+    setVideoEnded(false)
     ending.current = false
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function startRound() {
+    if (!config.videoId || selectionLoading) return
     setStarting(true)
     setMessage('')
     try {
@@ -157,6 +213,7 @@ export default function DemoPage() {
   }
 
   function handleVideoEnded() {
+    setVideoEnded(true)
     if (humanSubmitted) {
       void finishRound()
       return
@@ -179,7 +236,7 @@ export default function DemoPage() {
         {phase !== 'results' && phase !== 'complete' && <>
           <div className="demo-stage-heading"><p>{phase === 'intro' ? config.description : 'See someone in distress? Describe them as soon as you notice.'}</p><span className="demo-live-label">Pool footage</span></div>
           <PoolStage key={round?.round_id || config.videoId} src={round?.video_url} playing={playing} onTime={setTime} onEnded={handleVideoEnded} onMediaError={() => { setMediaError(true); setPaused(true) }}>
-            {phase === 'intro' && <div className="demo-stage-overlay demo-intro-overlay"><div className="demo-intro-copy"><p className="demo-eyebrow">Round {roundIndex + 1}</p><h2>{config.title}</h2><p>When you recognize the person, begin typing a short description. Your time is captured on the first character.</p><button className="demo-button" disabled={starting} onClick={() => void startRound()}>{starting ? 'Preparing…' : 'Start Round'} <span aria-hidden="true">↗</span></button></div></div>}
+            {phase === 'intro' && <div className="demo-stage-overlay demo-intro-overlay"><div className="demo-intro-copy"><p className="demo-eyebrow">Round {roundIndex + 1}</p><h2>{config.title}</h2><p>When you recognize the person, begin typing a short description. Your time is captured on the first character.</p><button className="demo-button" disabled={starting || selectionLoading || !config.videoId} onClick={() => void startRound()}>{selectionLoading ? 'Choosing clips…' : starting ? 'Preparing…' : 'Start Round'} <span aria-hidden="true">↗</span></button></div></div>}
             {phase === 'countdown' && !paused && <div className="demo-stage-overlay demo-countdown" role="status"><p>Eyes on the water</p><strong key={countdown}>{countdown}</strong><span>Describe the swimmer when you notice them.</span></div>}
             {paused && inRound && <div className="demo-stage-overlay demo-pause"><h2>{mediaError ? 'The clip could not play.' : 'Round paused.'}</h2><p>{mediaError ? 'Return to the round and try again.' : 'Resume when you are ready.'}</p><button className="demo-button" onClick={() => mediaError ? resetRound(roundIndex) : setPaused(false)}>{mediaError ? 'Return to round' : 'Resume round'}</button></div>}
             {phase === 'ending' && <div className="demo-stage-overlay demo-ending" role="status"><p className="demo-eyebrow">Round complete</p><h2>Comparing both answers.</h2></div>}
@@ -192,12 +249,12 @@ export default function DemoPage() {
 
         {phase === 'results' && result && round && <section className="demo-results" aria-labelledby="result-title">
           <p className="demo-eyebrow">Round {roundIndex + 1} · The reveal</p><h2 id="result-title" ref={stateHeading} tabIndex={-1}>{winnerCopy[result.first]}</h2><p className="demo-results-note">Times are measured from the start of the clip.</p>
-          <div className="demo-comparison"><article className={result.first === 'human' ? 'is-winner' : undefined}><p className="demo-eyebrow">You · Human attention</p><strong className="demo-result-time">{result.human ? result.human.time.toFixed(2) : '—'}{result.human && <small>s</small>}</strong><p>{result.human?.answer || 'No answer submitted'}</p><span className={`demo-outcome ${result.human?.correct ? 'is-correct' : ''}`}>{result.human?.correct ? 'Correct answer' : result.human ? 'Different person described' : 'No answer this round'}</span></article><article className={result.first === 'ai' ? 'is-winner' : undefined}><p className="demo-eyebrow">Lifeguard AI</p><strong className="demo-result-time">{result.ai.time.toFixed(2)}<small>s</small></strong><p>Possible distress detected</p><span className="demo-outcome is-correct">Correct detection</span></article></div>
+          <div className="demo-comparison"><article className={result.first === 'human' ? 'is-winner' : undefined}><p className="demo-eyebrow">You · Human attention</p><strong className="demo-result-time">{result.human ? result.human.time.toFixed(2) : '—'}{result.human && <small>s</small>}</strong><p>{result.human?.answer || 'No answer submitted'}</p><span className={`demo-outcome ${result.human?.correct ? 'is-correct' : ''}`}>{result.human?.correct ? 'Correct answer' : result.human ? 'Different person described' : 'No answer this round'}</span></article><article className={result.first === 'ai' ? 'is-winner' : undefined}><p className="demo-eyebrow">Lifeguard AI</p><strong className="demo-result-time">{result.ai.time === null ? '—' : result.ai.time.toFixed(2)}{result.ai.time !== null && <small>s</small>}</strong><p>{result.ai.answer || 'No answer'}</p><span className={`demo-outcome ${result.ai.correct ? 'is-correct' : ''}`}>{result.ai.correct ? 'Correct detection' : result.ai.answered ? 'Different person detected' : 'No detection submitted'}</span></article></div>
           <div className="demo-reveal-detail"><video src={round.video_url} controls muted playsInline preload="metadata" /><div><p className="demo-eyebrow">Round replay</p><h3>Review the moment.</h3><p>Compare when you responded with the AI detection time.</p></div></div>
           <div className="demo-result-actions"><p>Different strengths. One shared purpose.</p><button className="demo-button" onClick={() => roundIndex === 0 ? resetRound(1) : setPhase('complete')}>{roundIndex === 0 ? 'Continue to Round 2' : 'Finish challenge'} <span aria-hidden="true">↗</span></button></div>
         </section>}
 
-        {phase === 'complete' && <section className="demo-complete" aria-labelledby="complete-title"><p className="demo-eyebrow">Two rounds complete</p><h2 id="complete-title" ref={stateHeading} tabIndex={-1}>Better, <em>together.</em></h2><p className="demo-complete-lead">In the challenge, Human vs AI.<br />At the pool, Human <strong>+ AI.</strong></p><div className="demo-summary">{results.map((item, index) => <div key={item.round_id}><span>Round {index + 1}</span><strong>{winnerCopy[item.first]}</strong><span>{item.human?.correct ? `${item.human.time.toFixed(2)}s` : 'AI result'}</span></div>)}</div><div className="demo-complete-actions"><button className="demo-button" onClick={() => { setResults([]); resetRound(0) }}>Try again</button><a className="demo-button demo-button-secondary" href="/">Back to home</a></div></section>}
+        {phase === 'complete' && <section className="demo-complete" aria-labelledby="complete-title"><p className="demo-eyebrow">Two rounds complete</p><h2 id="complete-title" ref={stateHeading} tabIndex={-1}>Better, <em>together.</em></h2><p className="demo-complete-lead">In the challenge, Human vs AI.<br />At the pool, Human <strong>+ AI.</strong></p><div className="demo-summary">{results.map((item, index) => <div key={item.round_id}><span>Round {index + 1}</span><strong>{winnerCopy[item.first]}</strong><span>{item.human?.correct ? `${item.human.time.toFixed(2)}s` : 'AI result'}</span></div>)}</div><div className="demo-complete-actions"><button className="demo-button" disabled={selectionLoading} onClick={() => { setResults([]); resetRound(0); void loadRoundSelection() }}>{selectionLoading ? 'Choosing clips…' : 'Try again'}</button><a className="demo-button demo-button-secondary" href="/">Back to home</a></div></section>}
       </main>
       <footer className="demo-footer"><span>Human attention. An extra layer of care.</span><a href="/">Lifeguard AI <span aria-hidden="true">↗</span></a></footer>
       <svg className="demo-bottom-wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36Q180 0 360 40T720 36T1080 40T1440 24V80H0Z" fill="var(--seafoam)" /><path d="M0 64Q180 22 360 60T720 60T1080 60T1440 48V80H0Z" fill="var(--lagoon)" opacity=".35" /></svg>

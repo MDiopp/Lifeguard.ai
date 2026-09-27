@@ -8,8 +8,6 @@
       "distressed_swimmers": [
         {
           "id": "swimmer_1",
-          "distress_start": 7.0,
-          "distress_end": 23.0,
           "description": "Black girl in pink suit",
           "camera_view_location": "middle-right"
         }
@@ -17,6 +15,60 @@
       "ai_answer_time_range": {
         "minimum": 12.0,
         "maximum": 14.0
+      },
+      "notes": null
+    },
+    "easy_02": {
+      "video_id": "easy_02",
+      "filename": "easy_02.mp4",
+      "relative_path": "demo_videos/easy/easy_02.mp4",
+      "difficulty": "easy",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Girl/woman in black",
+          "camera_view_location": "middle/top-right"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 15.0,
+        "maximum": 17.0
+      },
+      "notes": null
+    },
+    "easy_03": {
+      "video_id": "easy_03",
+      "filename": "easy_03.mp4",
+      "relative_path": "demo_videos/easy/easy_03.mp4",
+      "difficulty": "easy",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Black boy",
+          "camera_view_location": "middle/top-right"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 10.0,
+        "maximum": 12.0
+      },
+      "notes": null
+    },
+    "easy_04": {
+      "video_id": "easy_04",
+      "filename": "easy_04.mp4",
+      "relative_path": "demo_videos/easy/easy_04.mp4",
+      "difficulty": "easy",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Black boy",
+          "camera_view_location": "middle/top-middle"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 21.0,
+        "maximum": 23.0
       },
       "notes": null
     },
@@ -28,17 +80,77 @@
       "distressed_swimmers": [
         {
           "id": "swimmer_1",
-          "distress_start": 14.0,
-          "distress_end": 29.78,
-          "description": "White girl",
-          "camera_view_location": "middle-left"
+          "description": "Girl/woman",
+          "camera_view_location": "middle/top-left"
         }
       ],
       "ai_answer_time_range": {
         "minimum": 18.0,
         "maximum": 20.0
       },
-      "notes": "Distress end was annotated as 30 seconds and normalized to the 29.78-second clip duration."
+      "simulated_ai_answer": {
+        "answer": null,
+        "correct": false
+      },
+      "notes": null
+    },
+    "hard_02": {
+      "video_id": "hard_02",
+      "filename": "hard_02.mp4",
+      "relative_path": "demo_videos/hard/hard_02.mp4",
+      "difficulty": "hard",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Big black boy",
+          "camera_view_location": "middle/top-middle-left"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 25.0,
+        "maximum": 27.0
+      },
+      "notes": null
+    },
+    "hard_03": {
+      "video_id": "hard_03",
+      "filename": "hard_03.mp4",
+      "relative_path": "demo_videos/hard/hard_03.mp4",
+      "difficulty": "hard",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Black boy/man",
+          "camera_view_location": "middle-center"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 10.0,
+        "maximum": 12.0
+      },
+      "simulated_ai_answer": {
+        "answer": "White girl in middle",
+        "correct": false
+      },
+      "notes": null
+    },
+    "hard_04": {
+      "video_id": "hard_04",
+      "filename": "hard_04.mp4",
+      "relative_path": "demo_videos/hard/hard_04.mp4",
+      "difficulty": "hard",
+      "distressed_swimmers": [
+        {
+          "id": "swimmer_1",
+          "description": "Black boy in orange",
+          "camera_view_location": "middle-left"
+        }
+      ],
+      "ai_answer_time_range": {
+        "minimum": 12.0,
+        "maximum": 14.0
+      },
+      "notes": null
     }
   }
 }

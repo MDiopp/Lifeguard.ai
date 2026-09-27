@@ -40,6 +40,10 @@ class CameraViewLocation(str, Enum):
     MIDDLE_LEFT = "middle-left"
     MIDDLE_CENTER = "middle-center"
     MIDDLE_RIGHT = "middle-right"
+    MIDDLE_TOP_LEFT = "middle/top-left"
+    MIDDLE_TOP_MIDDLE_LEFT = "middle/top-middle-left"
+    MIDDLE_TOP_MIDDLE = "middle/top-middle"
+    MIDDLE_TOP_RIGHT = "middle/top-right"
     BOTTOM_LEFT = "bottom-left"
     BOTTOM_CENTER = "bottom-center"
     BOTTOM_RIGHT = "bottom-right"
@@ -83,23 +87,10 @@ def _validate_identifier(identifier: str, *, field: str) -> str:
 
 class DistressedSwimmerMetadata(MetadataModel):
     id: str = Field(min_length=1, pattern=ID_PATTERN.pattern)
-    distress_start: float = Field(ge=0, allow_inf_nan=False)
-    distress_end: float = Field(ge=0, allow_inf_nan=False)
     description: str | None = None
     camera_view_location: (
         Annotated[CameraViewLocation, Field(strict=False)] | None
     ) = None
-
-    @field_validator("distress_start", "distress_end", mode="before")
-    @classmethod
-    def distress_times_must_be_non_negative(cls, value: Any) -> Any:
-        if (
-            isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and value < 0
-        ):
-            raise ValueError("must be non-negative")
-        return value
 
     @field_validator("description")
     @classmethod
@@ -108,15 +99,27 @@ class DistressedSwimmerMetadata(MetadataModel):
             raise ValueError("must be null or a non-empty string")
         return value
 
-    @model_validator(mode="after")
-    def distress_end_must_follow_start(self) -> DistressedSwimmerMetadata:
-        if self.distress_end <= self.distress_start:
-            raise ValueError("distress_end must be greater than distress_start")
-        return self
-
     def to_document(self) -> dict[str, Any]:
         """Return a JSON- and MongoDB-compatible document."""
         return self.model_dump(mode="json")
+
+
+class SimulatedAIAnswerMetadata(MetadataModel):
+    answer: str | None = Field(default=None, min_length=1)
+    correct: bool
+
+    @field_validator("answer")
+    @classmethod
+    def answer_must_not_be_blank(cls, answer: str | None) -> str | None:
+        if answer is not None and not answer.strip():
+            raise ValueError("must be a non-empty string")
+        return answer
+
+    @model_validator(mode="after")
+    def missing_answer_cannot_be_correct(self) -> SimulatedAIAnswerMetadata:
+        if self.answer is None and self.correct:
+            raise ValueError("correct must be false when answer is null")
+        return self
 
 
 class VideoMetadata(MetadataModel):
@@ -129,6 +132,7 @@ class VideoMetadata(MetadataModel):
         strict=False,
     )
     ai_answer_time_range: AIAnswerTimeRange
+    simulated_ai_answer: SimulatedAIAnswerMetadata | None = None
     notes: str | None = None
 
     @field_validator("filename")
@@ -163,18 +167,6 @@ class VideoMetadata(MetadataModel):
         expected_path = f"demo_videos/{self.difficulty.value}/{self.filename}"
         if self.relative_path != expected_path:
             raise ValueError(f"relative_path must be {expected_path!r}")
-        earliest_start = min(
-            swimmer.distress_start for swimmer in self.distressed_swimmers
-        )
-        latest_end = max(swimmer.distress_end for swimmer in self.distressed_swimmers)
-        if self.ai_answer_time_range.minimum < earliest_start:
-            raise ValueError(
-                "ai_answer_time_range.minimum must not precede the distress interval"
-            )
-        if self.ai_answer_time_range.maximum > latest_end:
-            raise ValueError(
-                "ai_answer_time_range.maximum must stay within the distress interval"
-            )
         return self
 
     @classmethod

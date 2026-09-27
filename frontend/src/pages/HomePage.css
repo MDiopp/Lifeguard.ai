@@ -100,17 +100,47 @@
 .home-sun {
   position: absolute;
   z-index: -1;
-  top: -148px;
-  right: -80px;
-  width: clamp(320px, 32vw, 480px);
+  top: -111px;
+  right: -60px;
+  width: clamp(240px, 24vw, 360px);
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--sun);
   pointer-events: none;
 }
-.home-sun span { position: absolute; border: 1px solid #fdf7ea80; border-radius: 50%; aspect-ratio: 1; }
-.home-sun span:first-child { width: 37%; left: 16%; top: 35%; }
-.home-sun span:last-child { width: 67%; left: 0; top: 60%; }
+.home-sun-core {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--sun);
+}
+.home-sun-rays {
+  position: absolute;
+  inset: -34%;
+  animation: home-sun-orbit 28s linear infinite;
+  will-change: transform;
+}
+.home-sun-rays i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7%;
+  height: 16%;
+  background: var(--sun);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  transform: translate(-50%, -50%) rotate(var(--ray-angle)) translateY(-260%);
+  transform-origin: 50% 50%;
+}
+.home-sun-rays i:nth-child(1) { --ray-angle: 0deg; }
+.home-sun-rays i:nth-child(2) { --ray-angle: 36deg; }
+.home-sun-rays i:nth-child(3) { --ray-angle: 72deg; }
+.home-sun-rays i:nth-child(4) { --ray-angle: 108deg; }
+.home-sun-rays i:nth-child(5) { --ray-angle: 144deg; }
+.home-sun-rays i:nth-child(6) { --ray-angle: 180deg; }
+.home-sun-rays i:nth-child(7) { --ray-angle: 216deg; }
+.home-sun-rays i:nth-child(8) { --ray-angle: 252deg; }
+.home-sun-rays i:nth-child(9) { --ray-angle: 288deg; }
+.home-sun-rays i:nth-child(10) { --ray-angle: 324deg; }
+@keyframes home-sun-orbit { to { transform: rotate(360deg); } }
 .home-waves {
   position: absolute;
   z-index: -1;
@@ -120,19 +150,16 @@
   height: clamp(360px, 49svh, 600px);
   pointer-events: none;
 }
-.home-wave { animation: home-wave-drift 12s ease-in-out infinite alternate; }
-.home-wave-middle { animation-duration: 15s; animation-delay: -5s; }
-.home-wave-front { animation-duration: 18s; animation-delay: -9s; }
 .home-wave-foam { fill: none; stroke: var(--sand); stroke-width: 6; opacity: .85; }
 .home-wave-ripple { fill: none; stroke: var(--seafoam); stroke-width: 3; opacity: .5; }
-@keyframes home-wave-drift { from { transform: translate(-12px, 4px); } to { transform: translate(12px, -8px); } }
 .home-specks { position: absolute; z-index: -1; inset: 0; pointer-events: none; }
 .home-specks i { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); opacity: .4; animation: home-float 9s ease-in-out infinite alternate; }
 .home-specks i:nth-child(1) { top: 43%; right: 21%; }
 .home-specks i:nth-child(2) { top: 56%; right: 31%; width: 4px; height: 4px; animation-delay: -3s; }
 .home-specks i:nth-child(3) { top: 37%; right: 12%; width: 4px; height: 4px; opacity: .25; animation-delay: -6s; }
 @keyframes home-float { to { transform: translateY(-8px); } }
-.home[data-motion='off'] .home-wave, .home[data-motion='off'] .home-specks i { animation-play-state: paused; }
+.home[data-motion='off'] .home-specks i,
+.home[data-motion='off'] .home-sun-rays { animation-play-state: paused; }
 .home-footer {
   position: relative;
   z-index: 1;
@@ -168,7 +195,7 @@
   .home-nav a { font-size: 11px; }
   .home .hero-title { font-size: clamp(64px, 8.5vw, 84px); }
   .home .hero-description { max-width: 560px; font-size: 18px; }
-  .home-sun { right: -128px; }
+  .home-sun { right: -96px; }
 }
 @media (max-width: 600px) {
   .home { --home-gutter: var(--space-6); min-height: max(880px, 100svh); }
@@ -182,7 +209,7 @@
   .home .hero-description { margin-top: var(--space-6); font-size: 16px; line-height: 1.75; max-width: 34ch; }
   .home-actions { margin-top: var(--space-6); gap: var(--space-3); }
   .home-cta { width: 100%; min-height: 56px; padding: var(--space-4) var(--space-6); font-size: 15px; }
-  .home-sun { width: 256px; top: -128px; right: -128px; }
+  .home-sun { width: 192px; top: -96px; right: -96px; }
   .home-waves { height: 300px; width: 160%; left: -45%; }
   .home-specks { display: none; }
   .home-footer { gap: var(--space-3); padding: var(--space-3) 0; }

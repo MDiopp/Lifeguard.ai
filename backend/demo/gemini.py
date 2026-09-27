@@ -39,10 +39,16 @@ class GeminiAnswerVerifier:
             response = client.models.generate_content(
                 model=self.model,
                 contents=(
-                    "Decide whether the submitted phrase identifies the same person as "
-                    "the reference annotation. Accept ordinary synonyms, omitted articles, "
-                    "and harmless wording differences. Reject a different person, a conflicting "
-                    "appearance, or an answer too vague to identify the reference person.\n\n"
+                    "Decide whether the submitted phrase plausibly identifies the same person as "
+                    "the reference annotation in moving pool footage. Be lenient with short, quickly "
+                    "typed descriptions. Accept ordinary synonyms and partial descriptions when the "
+                    "details given match the reference and do not describe a clearly different person. "
+                    "A submitted phrase does not need to repeat every reference detail; for example, "
+                    "'black girl' can match 'Black girl in pink suit'. Treat camera location only as an "
+                    "approximate supporting clue because swimmers move during the clip. Never reject an "
+                    "otherwise matching person solely because left/right, top/middle/bottom, or location "
+                    "is omitted or differs. Reject only when the submitted identity or appearance clearly "
+                    "contradicts the reference, or when it contains no useful identifying detail.\n\n"
                     f"Reference description: {reference_description}\n"
                     f"Reference camera location: {location}\n"
                     f"Submitted phrase: {submitted}"
